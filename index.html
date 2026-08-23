@@ -151,6 +151,79 @@
     0%,100%{ opacity:1; }
     50%{ opacity:0.55; }
   }
+  .score-row.lives.shake{
+    animation:livesShake 0.4s;
+  }
+  @keyframes livesShake{
+    0%,100%{ transform:translateX(0); }
+    25%{ transform:translateX(-4px); }
+    75%{ transform:translateX(4px); }
+  }
+  #hudRight{
+    position:absolute;
+    top:calc(env(safe-area-inset-top, 0px) + 10px);
+    right:calc(env(safe-area-inset-right, 0px) + 10px);
+    color:var(--foam);
+    z-index:20;
+    text-align:right;
+    pointer-events:none;
+    user-select:none;
+    background:rgba(2,20,30,0.5);
+    box-shadow:0 0 0 3px rgba(0,0,0,0.4), 0 0 0 5px rgba(255,255,255,0.25);
+    padding:8px 10px;
+  }
+  .hud-section-title{
+    font-size:clamp(6px, 1.8vw, 7.5px);
+    letter-spacing:1px;
+    opacity:0.65;
+    margin-bottom:4px;
+  }
+  .hud-section-title:not(:first-child){
+    margin-top:8px;
+  }
+  .heart-icon, .star-icon{
+    display:inline-block;
+    width:clamp(12px, 3.6vw, 16px);
+    height:clamp(12px, 3.6vw, 16px);
+    background-size:contain;
+    background-repeat:no-repeat;
+    background-position:center;
+    margin-left:2px;
+    transition:opacity 0.3s ease, filter 0.3s ease;
+  }
+  .heart-icon{
+    background-image:url('frames/fx/heart.png');
+  }
+  .heart-icon.lost{
+    opacity:0.25;
+    filter:grayscale(1);
+  }
+  .heart-icon.pop{
+    animation:heartPop 0.5s ease-out;
+  }
+  @keyframes heartPop{
+    0%{ transform:scale(1); }
+    30%{ transform:scale(1.5); }
+    60%{ transform:scale(0.8); }
+    100%{ transform:scale(1); }
+  }
+  .star-icon{
+    background-image:url('frames/fx/star.png');
+    opacity:0.25;
+    filter:grayscale(1);
+  }
+  .star-icon.filled{
+    opacity:1;
+    filter:none;
+  }
+  .star-icon.fill-anim{
+    animation:starFill 0.55s ease-out;
+  }
+  @keyframes starFill{
+    0%{ transform:scale(0.4) rotate(-20deg); filter:brightness(2.2) drop-shadow(0 0 6px #7CFFB2); }
+    55%{ transform:scale(1.35) rotate(12deg); filter:brightness(1.6); }
+    100%{ transform:scale(1) rotate(0deg); filter:none; }
+  }
   #hud .score-row.combo{
     color:#ff9f4d;
     display:none;
@@ -269,14 +342,14 @@
     pointer-events:none;
     text-align:center;
     white-space:nowrap;
-    animation:milestonePop 1.5s ease-out forwards;
+    animation:milestonePop 1.8s ease-out forwards;
   }
   @keyframes milestonePop{
     0%{ opacity:0; transform:translate(-50%,-50%) scale(0.5); }
-    18%{ opacity:1; transform:translate(-50%,-50%) scale(1.1); }
-    28%{ transform:translate(-50%,-50%) scale(1); }
-    78%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
-    100%{ opacity:0; transform:translate(-50%,-65%) scale(0.92); }
+    15%{ opacity:1; transform:translate(-50%,-50%) scale(1.1); }
+    24%{ transform:translate(-50%,-50%) scale(1); }
+    60%{ opacity:1; transform:translate(-50%,-70%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-180%) scale(0.92); }
   }
 
   .gold-glow{
@@ -457,6 +530,17 @@
     <div class="hint">Carettaları yakala, diğer canlılara dokunma!</div>
   </div>
 
+  <div id="hudRight">
+    <div class="hud-section-title">CANLAR</div>
+    <div class="score-row lives" id="livesRow">
+      <span class="heart-icon"></span><span class="heart-icon"></span><span class="heart-icon"></span>
+    </div>
+    <div class="hud-section-title">ZORLUK</div>
+    <div class="score-row levels" id="levelsRow">
+      <span class="star-icon filled"></span><span class="star-icon"></span><span class="star-icon"></span><span class="star-icon"></span><span class="star-icon"></span><span class="star-icon"></span>
+    </div>
+  </div>
+
   <div id="startScreen" class="overlay">
     <div class="panel">
       <div class="game-logo">
@@ -498,7 +582,7 @@
   <div id="endScreen" class="overlay hidden">
     <div class="panel">
       <span class="brand-tag">CARETTA RUSH</span>
-      <h2>SÜRE DOLDU!</h2>
+      <h2 id="endTitle">SÜRE DOLDU!</h2>
       <p id="finalStats"></p>
       <button id="restartBtn" class="pixel-btn">↻ TEKRAR OYNA</button>
     </div>
@@ -648,8 +732,10 @@
   const TRAIL_INTERVAL = 220; // ms between swim-trail marks
   const COMBO_TIMEOUT = 700; // ms without a catch before the streak resets
   const COMBO_MAX_BONUS = 4;
-  const DIFFICULTY_RAMP_START = 20; // seconds left when the endgame speed-up begins
-  const MILESTONE_STEP = 5; // show a toast every N catches
+  const LEVEL_COUNT = 6;
+  const LEVEL_DURATION = GAME_DURATION / LEVEL_COUNT; // 10s per level
+  const MILESTONES = [5, 10, 20, 40, 60, 80];
+  const MAX_LIVES = 3;
   let score = 0;
   let catches = 0;
   let timeLeft = GAME_DURATION;
@@ -657,9 +743,51 @@
   let streak = 0;
   let lastCatchTime = 0;
   let difficultyMult = 1;
-  let difficultyBoosted = false;
+  let difficultyLevel = 1;
+  let lives = MAX_LIVES;
   let best = Number(localStorage.getItem('caretta_best') || 0);
   bestEl.textContent = best;
+
+  const livesRow = document.getElementById('livesRow');
+  const levelsRow = document.getElementById('levelsRow');
+  const heartEls = Array.from(livesRow.querySelectorAll('.heart-icon'));
+  const starEls = Array.from(levelsRow.querySelectorAll('.star-icon'));
+  const endTitleEl = document.getElementById('endTitle');
+
+  function loseLife(){
+    if(lives <= 0) return;
+    lives--;
+    const heart = heartEls[lives];
+    if(heart){
+      heart.classList.add('lost', 'pop');
+      setTimeout(() => heart.classList.remove('pop'), 500);
+    }
+    livesRow.classList.remove('shake');
+    void livesRow.offsetWidth;
+    livesRow.classList.add('shake');
+    if(lives <= 0) endGame('lives');
+  }
+
+  function updateDifficulty(){
+    const elapsed = GAME_DURATION - timeLeft;
+    const newLevel = Math.min(LEVEL_COUNT, Math.floor(elapsed / LEVEL_DURATION) + 1);
+    if(newLevel !== difficultyLevel){
+      const grew = newLevel > difficultyLevel;
+      const from = difficultyLevel;
+      difficultyLevel = newLevel;
+      if(grew){
+        for(let i = from; i < difficultyLevel; i++){
+          const star = starEls[i];
+          if(!star) continue;
+          star.classList.add('filled', 'fill-anim');
+          setTimeout(() => star.classList.remove('fill-anim'), 550);
+        }
+        boostDifficulty();
+      }
+    }
+    difficultyMult = 1 + (difficultyLevel - 1) * 0.15;
+    if(difficultyLevel >= LEVEL_COUNT - 1) timerRow.classList.add('urgent');
+  }
 
   function updateComboUI(){
     if(streak >= 2){
@@ -874,7 +1002,7 @@
   }
 
   function checkMilestone(){
-    if(catches > 0 && catches % MILESTONE_STEP === 0) spawnMilestoneToast(catches);
+    if(MILESTONES.includes(catches)) spawnMilestoneToast(catches);
   }
 
   function spawnMilestoneToast(count){
@@ -882,7 +1010,7 @@
     t.className = 'milestone-toast';
     t.textContent = `🏆 ${count} CARETTA!`;
     ocean.appendChild(t);
-    setTimeout(()=>t.remove(), 1500);
+    setTimeout(()=>t.remove(), 1800);
     playMilestoneSound();
     vibrate([0, 15, 30, 15, 30, 40]);
   }
@@ -993,6 +1121,7 @@
     c.sprite.classList.add(c.cfg.animClass);
     spawnParticles(c.x, c.y, true, '-1');
     updateScore(-1);
+    loseLife();
     streak = 0;
     updateComboUI();
     ensureAudio();
@@ -1007,14 +1136,11 @@
   // adds a few extra swimmers once the endgame speed-up kicks in, so the
   // last stretch feels busier as well as faster
   function boostDifficulty(){
-    const added = [];
-    for(let i=0;i<2;i++) added.push(makeEntity('creature'));
-    added.push(makeEntity('turtle'));
-    for(const e of added){
-      (e.kind === 'turtle' ? turtles : creatures).push(e);
-      allEntities.push(e);
-      boostedEntities.push(e);
-    }
+    // one extra bad creature per level-up (5 possible bumps across levels 2-6)
+    const e = makeEntity('creature');
+    creatures.push(e);
+    allEntities.push(e);
+    boostedEntities.push(e);
   }
 
   // removes any entities added by boostDifficulty(), so replaying doesn't
@@ -1145,7 +1271,11 @@
     streak = 0;
     lastCatchTime = 0;
     difficultyMult = 1;
-    difficultyBoosted = false;
+    difficultyLevel = 1;
+    starEls.forEach((s, i) => s.classList.toggle('filled', i === 0));
+    lives = MAX_LIVES;
+    heartEls.forEach(h => h.classList.remove('lost', 'pop'));
+    livesRow.classList.remove('shake');
     timerRow.classList.remove('urgent');
     clearBoostedEntities();
     scoreEl.textContent = score;
@@ -1157,12 +1287,14 @@
     deactivateGold();
   }
 
-  function endGame(){
+  function endGame(reason){
+    if(gameState === 'over') return;
     gameState = 'over';
     streak = 0;
     updateComboUI();
     clearTimeout(goldTimeoutId);
     if(goldFish.state === 'swim') deactivateGold();
+    endTitleEl.textContent = reason === 'lives' ? 'CANLAR TÜKENDİ!' : 'SÜRE DOLDU!';
     const title = rankTitle(score);
     finalStatsEl.innerHTML = `Yakalanan Caretta: ${catches}<br>Toplam Skor: ${score}<br><span class="rank">${title}</span>`;
     endScreen.classList.remove('hidden');
@@ -1190,7 +1322,7 @@
       timeLeft -= dt;
       if(timeLeft <= 0){
         timeLeft = 0;
-        endGame();
+        endGame('time');
       }
       timeEl.textContent = Math.ceil(timeLeft);
 
@@ -1199,15 +1331,7 @@
         updateComboUI();
       }
 
-      if(timeLeft <= DIFFICULTY_RAMP_START){
-        const t = 1 - (timeLeft / DIFFICULTY_RAMP_START);
-        difficultyMult = 1 + t * 0.5;
-        timerRow.classList.add('urgent');
-        if(!difficultyBoosted){
-          difficultyBoosted = true;
-          boostDifficulty();
-        }
-      }
+      updateDifficulty();
     } else if(gameState === 'idle'){
       difficultyMult = 1;
     }
