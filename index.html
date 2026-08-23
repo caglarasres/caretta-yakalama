@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#012840">
-<title>Caretta Yakalama Oyunu</title>
+<title>Caretta Rush</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -308,6 +308,90 @@
     font-size:clamp(9px, 3.2vw, 12px);
     color:#ffd76b;
   }
+  .brand-tag{
+    display:block;
+    font-size:clamp(7px, 2.2vw, 9px);
+    letter-spacing:2px;
+    color:#ffd76b;
+    opacity:0.7;
+    margin-bottom:12px;
+  }
+
+  .game-logo{
+    margin-bottom:16px;
+  }
+  .game-logo .logo-emoji{
+    display:block;
+    font-size:clamp(24px, 9vw, 36px);
+    margin-bottom:6px;
+    animation:logoBob 2.4s ease-in-out infinite;
+  }
+  .game-logo .logo-title{
+    font-size:clamp(20px, 7.5vw, 30px);
+    line-height:1.25;
+    letter-spacing:1px;
+    color:#ffd76b;
+    text-shadow:
+      2px 2px 0 #b9862c,
+      4px 4px 0 #6b4610,
+      0 0 16px rgba(255,215,110,0.45);
+  }
+  .game-logo .logo-sub{
+    display:block;
+    margin-top:10px;
+    font-size:clamp(6.5px, 2.2vw, 9px);
+    letter-spacing:2px;
+    color:var(--foam);
+    opacity:0.75;
+  }
+  @keyframes logoBob{
+    0%,100%{ transform:translateY(0) rotate(-4deg); }
+    50%{ transform:translateY(-4px) rotate(4deg); }
+  }
+
+  .badges{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin:16px 0;
+  }
+  .badge{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    padding:10px 6px;
+    background:rgba(255,255,255,0.06);
+    box-shadow:0 0 0 2px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  .badge .badge-icon{ font-size:clamp(15px, 5vw, 19px); }
+  .badge .badge-text{
+    font-size:clamp(6px, 1.9vw, 7.5px);
+    line-height:1.4;
+    opacity:0.9;
+  }
+  .badge .badge-val{
+    font-size:clamp(9px, 3vw, 12px);
+    font-weight:700;
+  }
+  .badge.good .badge-val{ color:#7CFFB2; }
+  .badge.bad .badge-val{ color:#ff6b6b; }
+  .badge.gold{ background:rgba(255,215,110,0.14); }
+  .badge.gold .badge-val{ color:#ffd76b; }
+  .badge.combo{ background:rgba(255,159,77,0.14); }
+  .badge.combo .badge-val{ color:#ff9f4d; }
+  .badge.timer-badge{
+    grid-column:1 / -1;
+    flex-direction:row;
+    justify-content:center;
+    gap:8px;
+    padding:8px 10px;
+  }
+  .badge.timer-badge .badge-text{
+    font-size:clamp(6.5px, 2.1vw, 8.5px);
+    opacity:1;
+  }
+
   .pixel-btn{
     margin-top:18px;
     font-family:'Press Start 2P', sans-serif;
@@ -334,7 +418,7 @@
   <div id="vignette"></div>
 
   <div id="hud">
-    <h1>🐢 Caretta Yakalama</h1>
+    <h1>🐢 Caretta Rush</h1>
     <div class="score-row">Skor: <span id="score">0</span> &nbsp;|&nbsp; En yüksek: <span id="best">0</span></div>
     <div class="score-row timer">Süre: <span id="time">60</span>s</div>
     <div class="score-row combo" id="comboRow">🔥 Seri x<span id="streakVal">0</span></div>
@@ -343,19 +427,48 @@
 
   <div id="startScreen" class="overlay">
     <div class="panel">
-      <h2>🐢 CARETTA<br>YAKALAMA</h2>
-      <p>60 saniyede kaç caretta<br>yakalayabilirsin?</p>
-      <p>🐢 Caretta yakala: <span class="plus">+1</span></p>
-      <p>🐠 Diğer canlılara dokunma: <span class="minus">-1</span></p>
-      <button id="startBtn" class="pixel-btn">BAŞLA</button>
+      <div class="game-logo">
+        <span class="logo-emoji">🐢</span>
+        <div class="logo-title">CARETTA<br>RUSH</div>
+        <span class="logo-sub">DENİZ KAPLUMBAĞASI AVI</span>
+      </div>
+      <p>60 saniyede kaç caretta<br>yakalayabilirsin? Puanları topla,<br>rekorunu kır!</p>
+      <div class="badges">
+        <div class="badge good">
+          <span class="badge-icon">🐢</span>
+          <span class="badge-text">Caretta Yakala</span>
+          <span class="badge-val plus">+1</span>
+        </div>
+        <div class="badge bad">
+          <span class="badge-icon">🐠</span>
+          <span class="badge-text">Diğer Canlı</span>
+          <span class="badge-val minus">-1</span>
+        </div>
+        <div class="badge gold">
+          <span class="badge-icon">✨</span>
+          <span class="badge-text">Altın Caretta</span>
+          <span class="badge-val plus">+10</span>
+        </div>
+        <div class="badge combo">
+          <span class="badge-icon">🔥</span>
+          <span class="badge-text">Hızlı Seri</span>
+          <span class="badge-val plus">Bonus</span>
+        </div>
+        <div class="badge timer-badge">
+          <span class="badge-icon">⏱️</span>
+          <span class="badge-text">60 saniyen var — en yüksek skoru kır!</span>
+        </div>
+      </div>
+      <button id="startBtn" class="pixel-btn">▶ BAŞLA</button>
     </div>
   </div>
 
   <div id="endScreen" class="overlay hidden">
     <div class="panel">
+      <span class="brand-tag">CARETTA RUSH</span>
       <h2>SÜRE DOLDU!</h2>
       <p id="finalStats"></p>
-      <button id="restartBtn" class="pixel-btn">TEKRAR OYNA</button>
+      <button id="restartBtn" class="pixel-btn">↻ TEKRAR OYNA</button>
     </div>
   </div>
 </div>
