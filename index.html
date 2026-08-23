@@ -45,20 +45,7 @@
     overflow:hidden;
     opacity:0;
     transition:opacity 2s ease-in-out;
-  }
-  .bg-blur{
-    position:absolute;
-    inset:-30px;
     background-size:cover;
-    background-position:center;
-    background-repeat:no-repeat;
-    filter:blur(28px) brightness(0.65) saturate(1.15);
-    transform:scale(1.15);
-  }
-  .bg-crisp{
-    position:absolute;
-    inset:0;
-    background-size:contain;
     background-position:center;
     background-repeat:no-repeat;
     image-rendering:pixelated;
@@ -270,8 +257,8 @@
 </head>
 <body>
 <div id="ocean">
-  <div class="bg-layer" id="bgLayerA"><div class="bg-blur"></div><div class="bg-crisp"></div></div>
-  <div class="bg-layer" id="bgLayerB"><div class="bg-blur"></div><div class="bg-crisp"></div></div>
+  <div class="bg-layer" id="bgLayerA"></div>
+  <div class="bg-layer" id="bgLayerB"></div>
   <div id="vignette"></div>
 
   <div id="hud">
@@ -414,8 +401,7 @@
   const BG_INTERVAL = 15; // seconds per background
   const bgLayers = [document.getElementById('bgLayerA'), document.getElementById('bgLayerB')];
   function setBgImage(layer, src){
-    layer.querySelector('.bg-blur').style.backgroundImage = `url('${src}')`;
-    layer.querySelector('.bg-crisp').style.backgroundImage = `url('${src}')`;
+    layer.style.backgroundImage = `url('${src}')`;
   }
   let bgActive = 0;
   let bgIndex = 0;
