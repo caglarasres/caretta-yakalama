@@ -143,6 +143,14 @@
   #hud .score-row.timer{
     color:#ffd76b;
   }
+  #hud .score-row.timer.urgent{
+    color:#ff6b6b;
+    animation:urgentPulse 0.6s ease-in-out infinite;
+  }
+  @keyframes urgentPulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.55; }
+  }
   #hud .score-row.combo{
     color:#ff9f4d;
     display:none;
@@ -245,6 +253,30 @@
   .score-pop.gold{
     color:#ffd23f;
     font-size:28px;
+  }
+
+  .milestone-toast{
+    position:absolute;
+    top:20%;
+    left:50%;
+    background:rgba(2,20,30,0.88);
+    color:#ffd76b;
+    font-family:'Press Start 2P', sans-serif;
+    font-size:clamp(10px, 3.4vw, 15px);
+    padding:12px 18px;
+    box-shadow:0 0 0 3px #000, 0 0 0 6px rgba(255,215,110,0.45);
+    z-index:25;
+    pointer-events:none;
+    text-align:center;
+    white-space:nowrap;
+    animation:milestonePop 1.5s ease-out forwards;
+  }
+  @keyframes milestonePop{
+    0%{ opacity:0; transform:translate(-50%,-50%) scale(0.5); }
+    18%{ opacity:1; transform:translate(-50%,-50%) scale(1.1); }
+    28%{ transform:translate(-50%,-50%) scale(1); }
+    78%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-65%) scale(0.92); }
   }
 
   .gold-glow{
@@ -420,7 +452,7 @@
   <div id="hud">
     <h1>🐢 Caretta Rush</h1>
     <div class="score-row">Skor: <span id="score">0</span> &nbsp;|&nbsp; En yüksek: <span id="best">0</span></div>
-    <div class="score-row timer">Süre: <span id="time">60</span>s</div>
+    <div class="score-row timer" id="timerRow">Süre: <span id="time">60</span>s</div>
     <div class="score-row combo" id="comboRow">🔥 Seri x<span id="streakVal">0</span></div>
     <div class="hint">Carettaları yakala, diğer canlılara dokunma!</div>
   </div>
@@ -492,6 +524,7 @@
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
   const timeEl = document.getElementById('time');
+  const timerRow = document.getElementById('timerRow');
   const startScreen = document.getElementById('startScreen');
   const endScreen = document.getElementById('endScreen');
   const startBtn = document.getElementById('startBtn');
@@ -551,6 +584,12 @@
     const t0 = audioCtx.currentTime;
     [523, 659, 784, 1046].forEach((f,i)=> tone(f, t0 + i*0.07, 0.16, 'square', 0.2));
   }
+  function playMilestoneSound(){
+    if(!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    tone(660, t0, 0.1, 'square', 0.18);
+    tone(880, t0 + 0.09, 0.16, 'square', 0.2);
+  }
 
   function vibrate(pattern){
     if(navigator.vibrate){
@@ -609,12 +648,16 @@
   const TRAIL_INTERVAL = 220; // ms between swim-trail marks
   const COMBO_TIMEOUT = 700; // ms without a catch before the streak resets
   const COMBO_MAX_BONUS = 4;
+  const DIFFICULTY_RAMP_START = 20; // seconds left when the endgame speed-up begins
+  const MILESTONE_STEP = 5; // show a toast every N catches
   let score = 0;
   let catches = 0;
   let timeLeft = GAME_DURATION;
   let gameState = 'idle'; // idle | playing | over
   let streak = 0;
   let lastCatchTime = 0;
+  let difficultyMult = 1;
+  let difficultyBoosted = false;
   let best = Number(localStorage.getItem('caretta_best') || 0);
   bestEl.textContent = best;
 
@@ -748,8 +791,8 @@
     if(Math.abs(diff) <= maxStep) e.heading = e.targetHeading;
     else e.heading += Math.sign(diff) * maxStep;
 
-    const vx = Math.cos(e.heading) * e.speed;
-    const vy = Math.sin(e.heading) * e.speed;
+    const vx = Math.cos(e.heading) * e.speed * difficultyMult;
+    const vy = Math.sin(e.heading) * e.speed * difficultyMult;
     e.x += vx * dt;
     e.y += vy * dt;
 
@@ -828,6 +871,20 @@
     b.style.top = y+'px';
     ocean.appendChild(b);
     setTimeout(()=>b.remove(), 600);
+  }
+
+  function checkMilestone(){
+    if(catches > 0 && catches % MILESTONE_STEP === 0) spawnMilestoneToast(catches);
+  }
+
+  function spawnMilestoneToast(count){
+    const t = document.createElement('div');
+    t.className = 'milestone-toast';
+    t.textContent = `🏆 ${count} CARETTA!`;
+    ocean.appendChild(t);
+    setTimeout(()=>t.remove(), 1500);
+    playMilestoneSound();
+    vibrate([0, 15, 30, 15, 30, 40]);
   }
 
   function spawnTrailMark(e){
@@ -918,6 +975,7 @@
     spawnScorePop(t.x, t.y, 'score-pop', streak > 1 ? `+${points}` : '+1');
     updateScore(points);
     catches++;
+    checkMilestone();
     updateComboUI();
     ensureAudio();
     playCatchSound(streak);
@@ -944,6 +1002,33 @@
   }
 
   const allEntities = [...turtles, ...creatures];
+  let boostedEntities = [];
+
+  // adds a few extra swimmers once the endgame speed-up kicks in, so the
+  // last stretch feels busier as well as faster
+  function boostDifficulty(){
+    const added = [];
+    for(let i=0;i<2;i++) added.push(makeEntity('creature'));
+    added.push(makeEntity('turtle'));
+    for(const e of added){
+      (e.kind === 'turtle' ? turtles : creatures).push(e);
+      allEntities.push(e);
+      boostedEntities.push(e);
+    }
+  }
+
+  // removes any entities added by boostDifficulty(), so replaying doesn't
+  // keep stacking extra swimmers game after game
+  function clearBoostedEntities(){
+    for(const e of boostedEntities){
+      e.el.remove();
+      e.shadowEl.remove();
+      const list = e.kind === 'turtle' ? turtles : creatures;
+      let idx = list.indexOf(e); if(idx !== -1) list.splice(idx, 1);
+      idx = allEntities.indexOf(e); if(idx !== -1) allEntities.splice(idx, 1);
+    }
+    boostedEntities = [];
+  }
 
   // ---------- golden caretta power-up (rare, high value) ----------
   const GOLD_FRAME = 'frames/turtles/carettagold.png';
@@ -1038,6 +1123,7 @@
     spawnScorePop(goldFish.x, goldFish.y, 'score-pop gold', `+${points}!`);
     updateScore(points);
     catches++;
+    checkMilestone();
     updateComboUI();
     ensureAudio();
     playGoldSound();
@@ -1058,6 +1144,10 @@
     timeLeft = GAME_DURATION;
     streak = 0;
     lastCatchTime = 0;
+    difficultyMult = 1;
+    difficultyBoosted = false;
+    timerRow.classList.remove('urgent');
+    clearBoostedEntities();
     scoreEl.textContent = score;
     timeEl.textContent = timeLeft;
     updateComboUI();
@@ -1108,6 +1198,18 @@
         streak = 0;
         updateComboUI();
       }
+
+      if(timeLeft <= DIFFICULTY_RAMP_START){
+        const t = 1 - (timeLeft / DIFFICULTY_RAMP_START);
+        difficultyMult = 1 + t * 0.5;
+        timerRow.classList.add('urgent');
+        if(!difficultyBoosted){
+          difficultyBoosted = true;
+          boostDifficulty();
+        }
+      }
+    } else if(gameState === 'idle'){
+      difficultyMult = 1;
     }
 
     if(gameState !== 'over'){
