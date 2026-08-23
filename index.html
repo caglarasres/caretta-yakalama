@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -302,6 +302,19 @@
 
 <script>
 (function(){
+  // iOS Safari ignores user-scalable=no for pinch-zoom (accessibility override);
+  // block it at the gesture level so rapid/multi-finger tapping never zooms the page.
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('gesturechange', e => e.preventDefault());
+  document.addEventListener('gestureend', e => e.preventDefault());
+  document.addEventListener('touchmove', e => { if(e.touches.length > 1) e.preventDefault(); }, { passive:false });
+  let lastTapTime = 0;
+  document.addEventListener('touchend', e => {
+    const now = Date.now();
+    if(now - lastTapTime < 300) e.preventDefault();
+    lastTapTime = now;
+  }, { passive:false });
+
   const ocean = document.getElementById('ocean');
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
