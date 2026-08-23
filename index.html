@@ -42,14 +42,28 @@
   .bg-layer{
     position:absolute;
     inset:0;
+    overflow:hidden;
+    opacity:0;
+    transition:opacity 2s ease-in-out;
+  }
+  .bg-blur{
+    position:absolute;
+    inset:-30px;
     background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    filter:blur(28px) brightness(0.65) saturate(1.15);
+    transform:scale(1.15);
+  }
+  .bg-crisp{
+    position:absolute;
+    inset:0;
+    background-size:contain;
     background-position:center;
     background-repeat:no-repeat;
     image-rendering:pixelated;
     image-rendering:-moz-crisp-edges;
     image-rendering:crisp-edges;
-    opacity:0;
-    transition:opacity 2s ease-in-out;
   }
 
   /* soft top/bottom darkening for HUD contrast */
@@ -256,8 +270,8 @@
 </head>
 <body>
 <div id="ocean">
-  <div class="bg-layer" id="bgLayerA"></div>
-  <div class="bg-layer" id="bgLayerB"></div>
+  <div class="bg-layer" id="bgLayerA"><div class="bg-blur"></div><div class="bg-crisp"></div></div>
+  <div class="bg-layer" id="bgLayerB"><div class="bg-blur"></div><div class="bg-crisp"></div></div>
   <div id="vignette"></div>
 
   <div id="hud">
@@ -309,6 +323,10 @@
 
   function rand(min,max){ return min + Math.random()*(max-min); }
   function randomFrame(frames){ return frames[Math.floor(Math.random()*frames.length)]; }
+
+  // shrink sprites proportionally on small/phone screens so they don't dominate the viewport
+  const SIZE_REFERENCE = 700;
+  const sizeScale = Math.max(0.42, Math.min(1, Math.min(window.innerWidth, window.innerHeight) / SIZE_REFERENCE));
 
   const TYPE_CONFIG = {
     turtle: {
@@ -382,16 +400,20 @@
   BACKGROUNDS.forEach(src => { const w = new Image(); w.src = src; });
   const BG_INTERVAL = 15; // seconds per background
   const bgLayers = [document.getElementById('bgLayerA'), document.getElementById('bgLayerB')];
+  function setBgImage(layer, src){
+    layer.querySelector('.bg-blur').style.backgroundImage = `url('${src}')`;
+    layer.querySelector('.bg-crisp').style.backgroundImage = `url('${src}')`;
+  }
   let bgActive = 0;
   let bgIndex = 0;
   let bgTimer = 0;
-  bgLayers[0].style.backgroundImage = `url('${BACKGROUNDS[0]}')`;
+  setBgImage(bgLayers[0], BACKGROUNDS[0]);
   bgLayers[0].style.opacity = 1;
 
   function advanceBackground(){
     bgIndex = (bgIndex + 1) % BACKGROUNDS.length;
     const next = 1 - bgActive;
-    bgLayers[next].style.backgroundImage = `url('${BACKGROUNDS[bgIndex]}')`;
+    setBgImage(bgLayers[next], BACKGROUNDS[bgIndex]);
     // let the browser paint the new image before starting the fade, so the crossfade is glitch-free
     requestAnimationFrame(()=>{
       requestAnimationFrame(()=>{
@@ -476,7 +498,7 @@
     const cfg = TYPE_CONFIG[kind];
     const wrap = document.createElement('div');
     wrap.className = cfg.className;
-    const size = rand(cfg.sizeRange[0], cfg.sizeRange[1]);
+    const size = rand(cfg.sizeRange[0], cfg.sizeRange[1]) * sizeScale;
     wrap.style.width = size+'px';
     wrap.style.height = size+'px';
 
