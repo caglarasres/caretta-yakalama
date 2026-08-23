@@ -837,7 +837,12 @@
     mark.className = 'trail-mark';
     mark.style.width = w+'px';
     mark.style.height = h+'px';
-    mark.style.transform = headingTransform(e.x, e.y, e.heading);
+    // offset behind the entity (opposite its heading) so the mark reads as
+    // trailing out from its tail instead of starting under its own body
+    const behind = e.size * 0.38;
+    const bx = e.x - Math.cos(e.heading) * behind;
+    const by = e.y - Math.sin(e.heading) * behind;
+    mark.style.transform = headingTransform(bx, by, e.heading);
 
     const inner = document.createElement('div');
     inner.className = 'trail-fx';
