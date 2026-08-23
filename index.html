@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#012840">
+<title>Caretta Yakalama Oyunu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --deep:#012840;
+    --foam:#eafffb;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    overflow:hidden;
+    overscroll-behavior:none;
+    touch-action:none;
+    font-family:'Press Start 2P', 'Segoe UI', 'Trebuchet MS', sans-serif;
+    background:var(--deep);
+  }
+
+  #ocean{
+    position:relative;
+    width:100vw;
+    height:100vh;
+    height:100dvh;
+    overflow:hidden;
+    background:var(--deep);
+    touch-action:none;
+    cursor:crosshair;
+  }
+
+  .bg-layer{
+    position:absolute;
+    inset:0;
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    image-rendering:pixelated;
+    image-rendering:-moz-crisp-edges;
+    image-rendering:crisp-edges;
+    opacity:0;
+    transition:opacity 2s ease-in-out;
+  }
+
+  /* soft top/bottom darkening for HUD contrast */
+  #vignette{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background:linear-gradient(to bottom, rgba(0,10,20,0.45) 0%, transparent 18%, transparent 82%, rgba(0,10,20,0.35) 100%);
+  }
+
+  .bubble{
+    position:absolute;
+    bottom:-5%;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.15) 60%, transparent 70%);
+    pointer-events:none;
+    animation-name:rise;
+    animation-timing-function:linear;
+    animation-iteration-count:infinite;
+  }
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0); opacity:0;}
+    8%{opacity:0.8;}
+    100%{transform:translateY(-108vh) translateX(var(--drift, 20px)); opacity:0;}
+  }
+
+  #hud{
+    position:absolute;
+    top:calc(env(safe-area-inset-top, 0px) + 10px);
+    left:calc(env(safe-area-inset-left, 0px) + 10px);
+    max-width:min(240px, 62vw);
+    color:var(--foam);
+    z-index:20;
+    text-shadow:2px 2px 0 rgba(0,0,0,0.55);
+    pointer-events:none;
+    user-select:none;
+    background:rgba(2,20,30,0.5);
+    box-shadow:0 0 0 3px rgba(0,0,0,0.4), 0 0 0 5px rgba(255,255,255,0.25);
+    padding:10px 12px;
+    line-height:1.7;
+  }
+  #hud h1{
+    margin:0 0 8px 0;
+    font-size:clamp(9px, 3vw, 13px);
+    letter-spacing:0.5px;
+  }
+  #hud .score-row{
+    font-size:clamp(7px, 2.3vw, 10px);
+    opacity:0.95;
+  }
+  #hud .score-row.timer{
+    color:#ffd76b;
+  }
+  #hud .hint{
+    margin-top:8px;
+    font-size:clamp(6px, 1.9vw, 8px);
+    opacity:0.8;
+  }
+
+  .turtle, .creature{
+    position:absolute;
+    top:0; left:0;
+    will-change:transform;
+    cursor:pointer;
+  }
+  .turtle-sprite, .creature-sprite{
+    width:100%;
+    height:100%;
+    background-repeat:no-repeat;
+    background-position:center;
+    background-size:contain;
+    image-rendering:pixelated;
+    image-rendering:-moz-crisp-edges;
+    image-rendering:crisp-edges;
+    pointer-events:none;
+    filter:drop-shadow(3px 4px 0 rgba(0,0,0,0.35));
+  }
+  .turtle-shadow, .creature-shadow{
+    position:absolute;
+    top:0; left:0;
+    border-radius:50%;
+    background:radial-gradient(ellipse at center, rgba(0,10,20,0.35), transparent 70%);
+    pointer-events:none;
+    will-change:transform;
+  }
+
+  @keyframes catchPop{
+    0%{filter:drop-shadow(3px 4px 0 rgba(0,0,0,0.35)) brightness(1);}
+    30%{filter:drop-shadow(3px 4px 0 rgba(0,0,0,0.35)) brightness(1.8);}
+    100%{filter:drop-shadow(3px 4px 0 rgba(0,0,0,0.35)) brightness(1);}
+  }
+  .caught{
+    animation:catchSpin 0.7s cubic-bezier(.34,1.56,.64,1) forwards, catchPop 0.7s ease-out forwards;
+  }
+  @keyframes catchSpin{
+    0%{transform:scale(1) rotate(0deg);}
+    35%{transform:scale(1.35) rotate(20deg);}
+    70%{transform:scale(1.35) rotate(-14deg);}
+    100%{transform:scale(0.15) rotate(30deg); opacity:0;}
+  }
+
+  .penalized{
+    animation:penalizePop 0.6s ease-out forwards;
+  }
+  @keyframes penalizePop{
+    0%{transform:translate(0,0) scale(1); filter:drop-shadow(3px 4px 0 rgba(0,0,0,.35)) brightness(1);}
+    15%{transform:translate(-8px,0) scale(1.1); filter:drop-shadow(0 0 12px rgba(255,50,50,.9)) brightness(1.5);}
+    30%{transform:translate(8px,0) scale(1.1);}
+    45%{transform:translate(-5px,0) scale(1.05);}
+    60%{transform:translate(5px,0) scale(1.05);}
+    100%{transform:translate(0,0) scale(0.1); opacity:0; filter:drop-shadow(3px 4px 0 rgba(0,0,0,.35)) brightness(1);}
+  }
+
+  .sparkle{
+    position:absolute;
+    width:8px; height:8px;
+    border-radius:50%;
+    background:#fff8d8;
+    box-shadow:0 0 6px 2px rgba(255,248,216,0.8);
+    pointer-events:none;
+    animation:sparkleOut 0.7s ease-out forwards;
+  }
+  .sparkle.neg{
+    background:#ff6b6b;
+    box-shadow:0 0 6px 2px rgba(255,107,107,0.8);
+  }
+  @keyframes sparkleOut{
+    0%{transform:translate(0,0) scale(1); opacity:1;}
+    100%{transform:translate(var(--sx), var(--sy)) scale(0); opacity:0;}
+  }
+
+  .score-pop{
+    position:absolute;
+    color:#fff8d8;
+    font-weight:700;
+    font-size:22px;
+    text-shadow:0 2px 4px rgba(0,0,0,0.5);
+    pointer-events:none;
+    animation:scorePopUp 0.9s ease-out forwards;
+  }
+  .score-pop.neg{
+    color:#ff6b6b;
+  }
+  @keyframes scorePopUp{
+    0%{transform:translateY(0); opacity:1;}
+    100%{transform:translateY(-60px); opacity:0;}
+  }
+
+  .overlay{
+    position:absolute;
+    inset:0;
+    z-index:50;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(1,15,25,0.75);
+    padding:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-right,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px) calc(env(safe-area-inset-left,0px) + 16px);
+    touch-action:none;
+  }
+  .overlay.hidden{ display:none; }
+  .panel{
+    background:#08303f;
+    padding:clamp(16px, 5vw, 26px) clamp(16px, 6vw, 30px);
+    box-shadow:0 0 0 4px #01121c, 0 0 0 7px rgba(255,255,255,0.25);
+    text-align:center;
+    color:var(--foam);
+    width:100%;
+    max-width:360px;
+    max-height:100%;
+    overflow-y:auto;
+  }
+  .panel h2{
+    font-size:clamp(13px, 4.5vw, 16px);
+    line-height:1.6;
+    margin:0 0 14px;
+    color:#ffd76b;
+    text-shadow:2px 2px 0 rgba(0,0,0,.5);
+  }
+  .panel p{
+    font-size:clamp(8px, 2.8vw, 10px);
+    line-height:1.9;
+    margin:8px 0;
+  }
+  .panel .plus{ color:#7CFFB2; }
+  .panel .minus{ color:#ff6b6b; }
+  .pixel-btn{
+    margin-top:18px;
+    font-family:'Press Start 2P', sans-serif;
+    font-size:clamp(10px, 3.4vw, 11px);
+    padding:16px 22px;
+    min-height:48px;
+    background:#ffd76b;
+    color:#1a1a1a;
+    border:none;
+    box-shadow:0 4px 0 #b9862c, 0 0 0 3px #1a1a1a;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .pixel-btn:active{
+    transform:translateY(3px);
+    box-shadow:0 1px 0 #b9862c, 0 0 0 3px #1a1a1a;
+  }
+</style>
+</head>
+<body>
+<div id="ocean">
+  <div class="bg-layer" id="bgLayerA"></div>
+  <div class="bg-layer" id="bgLayerB"></div>
+  <div id="vignette"></div>
+
+  <div id="hud">
+    <h1>🐢 Caretta Yakalama</h1>
+    <div class="score-row">Skor: <span id="score">0</span> &nbsp;|&nbsp; En yüksek: <span id="best">0</span></div>
+    <div class="score-row timer">Süre: <span id="time">60</span>s</div>
+    <div class="hint">Carettaları yakala, diğer canlılara dokunma!</div>
+  </div>
+
+  <div id="startScreen" class="overlay">
+    <div class="panel">
+      <h2>🐢 CARETTA<br>YAKALAMA</h2>
+      <p>60 saniyede kaç caretta<br>yakalayabilirsin?</p>
+      <p>🐢 Caretta yakala: <span class="plus">+1</span></p>
+      <p>🐠 Diğer canlılara dokunma: <span class="minus">-1</span></p>
+      <button id="startBtn" class="pixel-btn">BAŞLA</button>
+    </div>
+  </div>
+
+  <div id="endScreen" class="overlay hidden">
+    <div class="panel">
+      <h2>SÜRE DOLDU!</h2>
+      <p id="finalStats"></p>
+      <button id="restartBtn" class="pixel-btn">TEKRAR OYNA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const ocean = document.getElementById('ocean');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const timeEl = document.getElementById('time');
+  const startScreen = document.getElementById('startScreen');
+  const endScreen = document.getElementById('endScreen');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const finalStatsEl = document.getElementById('finalStats');
+
+  const TURTLE_TOTAL = 5;
+  const TURTLE_FRAMES = Array.from({length:TURTLE_TOTAL}, (_,i)=>`frames/turtles/caretta${i+1}.png`);
+  // only the creature numbers that still exist on disk (some were deleted by hand)
+  const CREATURE_IDS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,30,31,32,40,41,42,45,46,47];
+  const CREATURE_FRAMES = CREATURE_IDS.map(i=>`frames/creatures/creature${i}.png`);
+  // warm the browser cache so swapping background-image never shows a blank/broken frame
+  TURTLE_FRAMES.forEach(src => { const w = new Image(); w.src = src; });
+  CREATURE_FRAMES.forEach(src => { const w = new Image(); w.src = src; });
+
+  function rand(min,max){ return min + Math.random()*(max-min); }
+  function randomFrame(frames){ return frames[Math.floor(Math.random()*frames.length)]; }
+
+  const TYPE_CONFIG = {
+    turtle: {
+      frames: TURTLE_FRAMES,
+      className: 'turtle',
+      spriteClassName: 'turtle-sprite',
+      shadowClassName: 'turtle-shadow',
+      animClass: 'caught',
+      sizeRange: [80, 140],
+      speedRange: [70, 130],
+      shadowScale: 0.7,
+      shadowHeightScale: 0.22,
+      shadowYOffset: 0.42,
+      respawnDelay: 720
+    },
+    creature: {
+      frames: CREATURE_FRAMES,
+      className: 'creature',
+      spriteClassName: 'creature-sprite',
+      shadowClassName: 'creature-shadow',
+      animClass: 'penalized',
+      sizeRange: [50, 88],
+      speedRange: [45, 90],
+      shadowScale: 0.6,
+      shadowHeightScale: 0.18,
+      shadowYOffset: 0.4,
+      respawnDelay: 650
+    }
+  };
+
+  const GAME_DURATION = 60;
+  let score = 0;
+  let catches = 0;
+  let timeLeft = GAME_DURATION;
+  let gameState = 'idle'; // idle | playing | over
+  let best = Number(localStorage.getItem('caretta_best') || 0);
+  bestEl.textContent = best;
+
+  function updateScore(delta){
+    score += delta;
+    scoreEl.textContent = score;
+    if(score > best){
+      best = score;
+      bestEl.textContent = best;
+      localStorage.setItem('caretta_best', String(best));
+    }
+  }
+
+  // ---------- ambient decor ----------
+  function spawnBubbles(){
+    const count = 22;
+    for(let i=0;i<count;i++){
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      const size = 4 + Math.random()*14;
+      b.style.width = size+'px';
+      b.style.height = size+'px';
+      b.style.left = (Math.random()*100)+'vw';
+      const duration = 7 + Math.random()*9;
+      const delay = Math.random()*duration;
+      b.style.animationDuration = duration+'s';
+      b.style.animationDelay = '-'+delay+'s';
+      b.style.setProperty('--drift', (Math.random()*60-30)+'px');
+      ocean.appendChild(b);
+    }
+  }
+  spawnBubbles();
+
+  // ---------- cycling background ----------
+  const BACKGROUNDS = ['background1.jpeg','background2.jpeg','background3.jpeg','background4.jpeg'];
+  BACKGROUNDS.forEach(src => { const w = new Image(); w.src = src; });
+  const BG_INTERVAL = 15; // seconds per background
+  const bgLayers = [document.getElementById('bgLayerA'), document.getElementById('bgLayerB')];
+  let bgActive = 0;
+  let bgIndex = 0;
+  let bgTimer = 0;
+  bgLayers[0].style.backgroundImage = `url('${BACKGROUNDS[0]}')`;
+  bgLayers[0].style.opacity = 1;
+
+  function advanceBackground(){
+    bgIndex = (bgIndex + 1) % BACKGROUNDS.length;
+    const next = 1 - bgActive;
+    bgLayers[next].style.backgroundImage = `url('${BACKGROUNDS[bgIndex]}')`;
+    // let the browser paint the new image before starting the fade, so the crossfade is glitch-free
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        bgLayers[next].style.opacity = 1;
+        bgLayers[bgActive].style.opacity = 0;
+        bgActive = next;
+      });
+    });
+  }
+
+  // ---------- shared wander physics ----------
+  function stepWander(e, dt, W, H, floorLimit){
+    e.wanderTimer -= dt;
+    if(e.wanderTimer <= 0){
+      e.heading += rand(-0.9, 0.9);
+      e.wanderTimer = rand(0.6, 2.2);
+    } else {
+      e.heading += rand(-0.15, 0.15) * dt * 6;
+    }
+
+    const margin2 = e.size*1.2;
+    if(e.x < margin2) e.heading = lerpAngle(e.heading, 0, 0.05);
+    if(e.x > W - margin2) e.heading = lerpAngle(e.heading, Math.PI, 0.05);
+    if(e.y < margin2) e.heading = lerpAngle(e.heading, Math.PI/2, 0.05);
+    if(e.y > floorLimit - margin2) e.heading = lerpAngle(e.heading, -Math.PI/2, 0.05);
+
+    const vx = Math.cos(e.heading) * e.speed;
+    const vy = Math.sin(e.heading) * e.speed;
+    e.x += vx * dt;
+    e.y += vy * dt;
+
+    e.x = Math.max(-e.size*0.5, Math.min(W + e.size*0.5, e.x));
+    e.y = Math.max(-e.size*0.5, Math.min(floorLimit + e.size*0.5, e.y));
+  }
+
+  function lerpAngle(a, target, amt){
+    let diff = ((target - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
+    return a + diff*amt;
+  }
+
+  function respawnAtEdge(e){
+    const cfg = e.cfg;
+    const size = e.size;
+    const side = Math.floor(Math.random()*4);
+    const W = window.innerWidth, H = window.innerHeight;
+    if(side===0){ e.x = -size*0.4; e.y = rand(size, H*0.8); }
+    else if(side===1){ e.x = W+size*0.4; e.y = rand(size, H*0.8); }
+    else if(side===2){ e.x = rand(size, W-size); e.y = -size*0.4; }
+    else { e.x = rand(size, W-size); e.y = H*0.85; }
+    e.heading = Math.atan2((H*0.5)-e.y, (W*0.5)-e.x) + rand(-0.5,0.5);
+    e.speed = rand(cfg.speedRange[0], cfg.speedRange[1]);
+    e.state = 'swim';
+    e.el.style.opacity = 1;
+    e.sprite.classList.remove(cfg.animClass);
+    e.sprite.style.backgroundImage = `url('${randomFrame(cfg.frames)}')`;
+  }
+
+  function spawnParticles(x, y, negative){
+    for(let i=0;i<10;i++){
+      const p = document.createElement('div');
+      p.className = negative ? 'sparkle neg' : 'sparkle';
+      const angle = Math.random()*Math.PI*2;
+      const dist = 30 + Math.random()*40;
+      p.style.setProperty('--sx', Math.cos(angle)*dist+'px');
+      p.style.setProperty('--sy', Math.sin(angle)*dist+'px');
+      p.style.left = x+'px';
+      p.style.top = y+'px';
+      ocean.appendChild(p);
+      setTimeout(()=>p.remove(), 750);
+    }
+    const pop = document.createElement('div');
+    pop.className = negative ? 'score-pop neg' : 'score-pop';
+    pop.textContent = negative ? '-1' : '+1';
+    pop.style.left = (x-10)+'px';
+    pop.style.top = (y-20)+'px';
+    ocean.appendChild(pop);
+    setTimeout(()=>pop.remove(), 950);
+  }
+
+  // ---------- entity factory ----------
+  function makeEntity(kind){
+    const cfg = TYPE_CONFIG[kind];
+    const wrap = document.createElement('div');
+    wrap.className = cfg.className;
+    const size = rand(cfg.sizeRange[0], cfg.sizeRange[1]);
+    wrap.style.width = size+'px';
+    wrap.style.height = size+'px';
+
+    const shadow = document.createElement('div');
+    shadow.className = cfg.shadowClassName;
+    shadow.style.width = (size*cfg.shadowScale)+'px';
+    shadow.style.height = (size*cfg.shadowHeightScale)+'px';
+    ocean.appendChild(shadow);
+
+    const sprite = document.createElement('div');
+    sprite.className = cfg.spriteClassName;
+    sprite.style.backgroundImage = `url('${randomFrame(cfg.frames)}')`;
+    wrap.appendChild(sprite);
+    ocean.appendChild(wrap);
+
+    const e = {
+      kind,
+      cfg,
+      el: wrap,
+      shadowEl: shadow,
+      sprite: sprite,
+      size: size,
+      x: rand(size, window.innerWidth - size),
+      y: rand(size, window.innerHeight*0.75),
+      heading: rand(0, Math.PI*2),
+      speed: rand(cfg.speedRange[0], cfg.speedRange[1]),
+      wanderTimer: rand(0.5, 2.5),
+      state: 'swim'
+    };
+
+    wrap.addEventListener('pointerdown', (ev)=>{
+      ev.stopPropagation();
+      if(kind === 'turtle') tryCatch(e); else tryPenalize(e);
+    });
+
+    return e;
+  }
+
+  // ---------- turtles (good, +1) ----------
+  const TURTLE_COUNT = 5;
+  const turtles = Array.from({length:TURTLE_COUNT}, ()=>makeEntity('turtle'));
+
+  function tryCatch(t){
+    if(gameState !== 'playing' || t.state !== 'swim') return;
+    t.state = 'caught';
+    t.sprite.classList.add(t.cfg.animClass);
+    spawnParticles(t.x, t.y, false);
+    updateScore(1);
+    catches++;
+    setTimeout(()=>respawnAtEdge(t), t.cfg.respawnDelay);
+  }
+
+  // ---------- creatures (bad, -1) ----------
+  const CREATURE_COUNT = 6;
+  const creatures = Array.from({length:CREATURE_COUNT}, ()=>makeEntity('creature'));
+
+  function tryPenalize(c){
+    if(gameState !== 'playing' || c.state !== 'swim') return;
+    c.state = 'caught';
+    c.sprite.classList.add(c.cfg.animClass);
+    spawnParticles(c.x, c.y, true);
+    updateScore(-1);
+    setTimeout(()=>respawnAtEdge(c), c.cfg.respawnDelay);
+  }
+
+  const allEntities = [...turtles, ...creatures];
+
+  // ---------- game state ----------
+  function startGame(){
+    score = 0;
+    catches = 0;
+    timeLeft = GAME_DURATION;
+    scoreEl.textContent = score;
+    timeEl.textContent = timeLeft;
+    gameState = 'playing';
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+  }
+
+  function endGame(){
+    gameState = 'over';
+    finalStatsEl.innerHTML = `Yakalanan Caretta: ${catches}<br>Toplam Skor: ${score}`;
+    endScreen.classList.remove('hidden');
+  }
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  // ---------- animation loop ----------
+  let lastTime = performance.now();
+  function tick(now){
+    const dt = Math.min(0.05, (now - lastTime)/1000);
+    lastTime = now;
+    const W = window.innerWidth, H = window.innerHeight;
+    const floorLimit = H*0.9;
+
+    bgTimer += dt;
+    if(bgTimer >= BG_INTERVAL){
+      bgTimer = 0;
+      advanceBackground();
+    }
+
+    if(gameState === 'playing'){
+      timeLeft -= dt;
+      if(timeLeft <= 0){
+        timeLeft = 0;
+        endGame();
+      }
+      timeEl.textContent = Math.ceil(timeLeft);
+    }
+
+    if(gameState !== 'over'){
+      for(const e of allEntities){
+        if(e.state !== 'swim') continue;
+        stepWander(e, dt, W, H, floorLimit);
+
+        const flip = Math.cos(e.heading) < 0 ? -1 : 1;
+        e.el.style.transform = `translate(${e.x}px, ${e.y}px) translate(-50%, -50%) scaleX(${flip})`;
+        e.shadowEl.style.transform = `translate(${e.x}px, ${e.y + e.size*e.cfg.shadowYOffset}px) translate(-50%, -50%)`;
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  window.addEventListener('resize', ()=>{
+    for(const e of allEntities){
+      e.x = Math.min(e.x, window.innerWidth - e.size*0.5);
+      e.y = Math.min(e.y, window.innerHeight*0.9 - e.size*0.5);
+    }
+  });
+})();
+</script>
+</body>
+</html>
