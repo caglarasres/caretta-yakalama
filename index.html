@@ -592,6 +592,26 @@
   }
 
   // ---------- shared wander physics ----------
+  const MAX_TILT = 0.85; // radians (~49deg) - how far from horizontal headings are allowed to go
+
+  // keeps a heading from ever pointing near-straight up/down: snaps steep
+  // angles back to the nearest allowed diagonal on the same left/right,
+  // up/down side, so movement always reads as diagonal or horizontal
+  function clampSteepness(heading){
+    const s = Math.sin(heading);
+    const maxSin = Math.sin(MAX_TILT);
+    if(Math.abs(s) <= maxSin) return heading;
+    const goingRight = Math.cos(heading) >= 0;
+    const vert = s >= 0 ? MAX_TILT : -MAX_TILT;
+    return goingRight ? vert : (Math.PI - vert);
+  }
+
+  function diagonalTarget(heading, wantDown){
+    const goingRight = Math.cos(heading) >= 0;
+    const vert = wantDown ? MAX_TILT : -MAX_TILT;
+    return goingRight ? vert : (Math.PI - vert);
+  }
+
   function stepWander(e, dt, W, H, floorLimit){
     e.wanderTimer -= dt;
     if(e.wanderTimer <= 0){
@@ -604,8 +624,10 @@
     const margin2 = e.size*1.2;
     if(e.x < margin2) e.heading = lerpAngle(e.heading, 0, 0.05);
     if(e.x > W - margin2) e.heading = lerpAngle(e.heading, Math.PI, 0.05);
-    if(e.y < margin2) e.heading = lerpAngle(e.heading, Math.PI/2, 0.05);
-    if(e.y > floorLimit - margin2) e.heading = lerpAngle(e.heading, -Math.PI/2, 0.05);
+    if(e.y < margin2) e.heading = lerpAngle(e.heading, diagonalTarget(e.heading, true), 0.05);
+    if(e.y > floorLimit - margin2) e.heading = lerpAngle(e.heading, diagonalTarget(e.heading, false), 0.05);
+
+    e.heading = clampSteepness(e.heading);
 
     const vx = Math.cos(e.heading) * e.speed;
     const vy = Math.sin(e.heading) * e.speed;
@@ -619,6 +641,16 @@
   function lerpAngle(a, target, amt){
     let diff = ((target - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
     return a + diff*amt;
+  }
+
+  // flip (left/right) + a rotation that tilts the sprite's nose toward its
+  // actual heading, so diagonal movement visibly angles the artwork instead
+  // of just mirroring it
+  function headingTransform(x, y, heading){
+    const flip = Math.cos(heading) < 0 ? -1 : 1;
+    const headingDeg = heading * 180/Math.PI;
+    const rotateDeg = flip === 1 ? headingDeg : (180 - headingDeg);
+    return `translate(${x}px, ${y}px) translate(-50%, -50%) scaleX(${flip}) rotate(${rotateDeg}deg)`;
   }
 
   function respawnAtEdge(e){
@@ -691,8 +723,7 @@
     mark.className = 'trail-mark';
     mark.style.width = w+'px';
     mark.style.height = h+'px';
-    const flip = Math.cos(e.heading) < 0 ? -1 : 1;
-    mark.style.transform = `translate(${e.x}px, ${e.y}px) translate(-50%, -50%) scaleX(${flip})`;
+    mark.style.transform = headingTransform(e.x, e.y, e.heading);
 
     const inner = document.createElement('div');
     inner.className = 'trail-fx';
@@ -963,8 +994,7 @@
         if(e.state !== 'swim') continue;
         stepWander(e, dt, W, H, floorLimit);
 
-        const flip = Math.cos(e.heading) < 0 ? -1 : 1;
-        e.el.style.transform = `translate(${e.x}px, ${e.y}px) translate(-50%, -50%) scaleX(${flip})`;
+        e.el.style.transform = headingTransform(e.x, e.y, e.heading);
         e.shadowEl.style.transform = `translate(${e.x}px, ${e.y + e.size*e.cfg.shadowYOffset}px) translate(-50%, -50%)`;
 
         e.trailTimer += dt*1000;
@@ -976,8 +1006,7 @@
 
       if(goldFish.state === 'swim'){
         stepWander(goldFish, dt, W, H, floorLimit);
-        const gflip = Math.cos(goldFish.heading) < 0 ? -1 : 1;
-        goldWrap.style.transform = `translate(${goldFish.x}px, ${goldFish.y}px) translate(-50%, -50%) scaleX(${gflip})`;
+        goldWrap.style.transform = headingTransform(goldFish.x, goldFish.y, goldFish.heading);
         goldShadow.style.transform = `translate(${goldFish.x}px, ${goldFish.y + goldFish.size*0.42}px) translate(-50%, -50%)`;
         if(now > goldFish.despawnAt) deactivateGold();
 
