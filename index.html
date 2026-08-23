@@ -666,7 +666,7 @@
   function spawnCatchBurst(x, y, size){
     const b = document.createElement('div');
     b.className = 'catch-burst';
-    const w = size * 1.3;
+    const w = size * 1.05;
     b.style.width = w+'px';
     b.style.height = w+'px';
     b.style.left = x+'px';
@@ -873,7 +873,7 @@
     lastCatchTime = now;
     const points = GOLD_POINTS + Math.min(streak - 1, COMBO_MAX_BONUS);
 
-    spawnCatchBurst(goldFish.x, goldFish.y, goldFish.size * 1.4);
+    spawnCatchBurst(goldFish.x, goldFish.y, goldFish.size * 1.15);
     spawnScorePop(goldFish.x, goldFish.y, 'score-pop gold', `+${points}!`);
     updateScore(points);
     catches++;
