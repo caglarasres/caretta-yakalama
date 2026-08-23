@@ -592,42 +592,48 @@
   }
 
   // ---------- shared wander physics ----------
-  const MAX_TILT = 0.85; // radians (~49deg) - how far from horizontal headings are allowed to go
+  const MAX_TILT = 0.5; // radians (~29deg) - the one fixed diagonal angle entities swim at
 
-  // keeps a heading from ever pointing near-straight up/down: snaps steep
-  // angles back to the nearest allowed diagonal on the same left/right,
-  // up/down side, so movement always reads as diagonal or horizontal
-  function clampSteepness(heading){
-    const s = Math.sin(heading);
-    const maxSin = Math.sin(MAX_TILT);
-    if(Math.abs(s) <= maxSin) return heading;
-    const goingRight = Math.cos(heading) >= 0;
-    const vert = s >= 0 ? MAX_TILT : -MAX_TILT;
-    return goingRight ? vert : (Math.PI - vert);
-  }
-
+  // one fixed diagonal angle on the correct left/right side - not a random amount,
+  // so "diagonal" always means the same gentle tilt, never a harsher one
   function diagonalTarget(heading, wantDown){
     const goingRight = Math.cos(heading) >= 0;
     const vert = wantDown ? MAX_TILT : -MAX_TILT;
     return goingRight ? vert : (Math.PI - vert);
   }
 
+  // picks a new resting heading: mostly keeps going the same general left/right
+  // way, occasionally reverses, and always settles on either dead level or the
+  // one fixed diagonal tilt - never an in-between angle
+  function pickHeading(prevHeading){
+    const wasGoingRight = Math.cos(prevHeading) >= 0;
+    const goingRight = Math.random() < 0.82 ? wasGoingRight : !wasGoingRight;
+    const roll = Math.random();
+    const tilt = roll < 0.4 ? 0 : (roll < 0.7 ? MAX_TILT : -MAX_TILT);
+    return goingRight ? tilt : (Math.PI - tilt);
+  }
+
+  const TURN_RATE = 0.9; // radians/sec - bounded turn speed so direction changes ease in, never snap
+
   function stepWander(e, dt, W, H, floorLimit){
     e.wanderTimer -= dt;
     if(e.wanderTimer <= 0){
-      e.heading += rand(-0.9, 0.9);
-      e.wanderTimer = rand(0.6, 2.2);
-    } else {
-      e.heading += rand(-0.15, 0.15) * dt * 6;
+      e.targetHeading = pickHeading(e.targetHeading);
+      e.wanderTimer = rand(2.5, 5);
     }
 
     const margin2 = e.size*1.2;
-    if(e.x < margin2) e.heading = lerpAngle(e.heading, 0, 0.05);
-    if(e.x > W - margin2) e.heading = lerpAngle(e.heading, Math.PI, 0.05);
-    if(e.y < margin2) e.heading = lerpAngle(e.heading, diagonalTarget(e.heading, true), 0.05);
-    if(e.y > floorLimit - margin2) e.heading = lerpAngle(e.heading, diagonalTarget(e.heading, false), 0.05);
+    if(e.x < margin2) e.targetHeading = 0;
+    else if(e.x > W - margin2) e.targetHeading = Math.PI;
+    if(e.y < margin2) e.targetHeading = diagonalTarget(e.targetHeading, true);
+    else if(e.y > floorLimit - margin2) e.targetHeading = diagonalTarget(e.targetHeading, false);
 
-    e.heading = clampSteepness(e.heading);
+    // ease the actual heading toward the target at a fixed max turn rate,
+    // instead of jumping straight to it - this is what removes the jitter
+    let diff = ((e.targetHeading - e.heading + Math.PI*3) % (Math.PI*2)) - Math.PI;
+    const maxStep = TURN_RATE * dt;
+    if(Math.abs(diff) <= maxStep) e.heading = e.targetHeading;
+    else e.heading += Math.sign(diff) * maxStep;
 
     const vx = Math.cos(e.heading) * e.speed;
     const vy = Math.sin(e.heading) * e.speed;
@@ -636,11 +642,6 @@
 
     e.x = Math.max(-e.size*0.5, Math.min(W + e.size*0.5, e.x));
     e.y = Math.max(-e.size*0.5, Math.min(floorLimit + e.size*0.5, e.y));
-  }
-
-  function lerpAngle(a, target, amt){
-    let diff = ((target - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
-    return a + diff*amt;
   }
 
   // flip (left/right) + a rotation that tilts the sprite's nose toward its
@@ -662,7 +663,7 @@
     else if(side===1){ e.x = W+size*0.4; e.y = rand(size, H*0.8); }
     else if(side===2){ e.x = rand(size, W-size); e.y = -size*0.4; }
     else { e.x = rand(size, W-size); e.y = H*0.85; }
-    e.heading = Math.atan2((H*0.5)-e.y, (W*0.5)-e.x) + rand(-0.5,0.5);
+    e.heading = e.targetHeading = pickHeading(Math.atan2((H*0.5)-e.y, (W*0.5)-e.x));
     e.speed = rand(cfg.speedRange[0], cfg.speedRange[1]);
     e.state = 'swim';
     e.el.style.opacity = 1;
@@ -763,12 +764,14 @@
       size: size,
       x: rand(size, window.innerWidth - size),
       y: rand(size, window.innerHeight*0.75),
-      heading: rand(0, Math.PI*2),
+      heading: 0,
+      targetHeading: 0,
       speed: rand(cfg.speedRange[0], cfg.speedRange[1]),
-      wanderTimer: rand(0.5, 2.5),
+      wanderTimer: rand(0.2, 1.5),
       trailTimer: rand(0, 200),
       state: 'swim'
     };
+    e.heading = e.targetHeading = pickHeading(Math.random() < 0.5 ? 0 : Math.PI);
 
     wrap.addEventListener('pointerdown', (ev)=>{
       ev.stopPropagation();
@@ -862,7 +865,7 @@
     cfg: TYPE_CONFIG.turtle,
     el: goldWrap, shadowEl: goldShadow, sprite: goldSprite,
     size: goldSize,
-    x: 0, y: 0, heading: 0, speed: 0, wanderTimer: 0, trailTimer: 0,
+    x: 0, y: 0, heading: 0, targetHeading: 0, speed: 0, wanderTimer: 0, trailTimer: 0,
     despawnAt: 0,
     state: 'hidden'
   };
@@ -884,7 +887,7 @@
     const W = window.innerWidth, H = window.innerHeight;
     goldFish.x = rand(goldFish.size, W - goldFish.size);
     goldFish.y = rand(goldFish.size, H*0.7);
-    goldFish.heading = rand(0, Math.PI*2);
+    goldFish.heading = goldFish.targetHeading = pickHeading(Math.random() < 0.5 ? 0 : Math.PI);
     goldFish.speed = rand(90, 150);
     goldFish.wanderTimer = rand(0.5, 1.5);
     goldFish.state = 'swim';
