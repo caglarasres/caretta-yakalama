@@ -514,6 +514,50 @@
     transform:translateY(3px);
     box-shadow:0 1px 0 #b9862c, 0 0 0 3px #1a1a1a;
   }
+
+  .loading-bar-track{
+    width:100%;
+    height:14px;
+    background:rgba(255,255,255,0.1);
+    box-shadow:0 0 0 2px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.08);
+    margin-top:20px;
+    overflow:hidden;
+  }
+  .loading-bar-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, #ffd76b, #ff9f4d);
+    transition:width 0.25s ease-out;
+  }
+  .loading-pct{
+    margin-top:8px;
+    font-size:clamp(8px, 2.6vw, 10px);
+    color:var(--foam);
+    opacity:0.8;
+  }
+
+  .mute-btn{
+    position:absolute;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 10px);
+    left:calc(env(safe-area-inset-left, 0px) + 10px);
+    z-index:22;
+    width:38px;
+    height:38px;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:16px;
+    background:rgba(2,20,30,0.6);
+    color:var(--foam);
+    border:none;
+    box-shadow:0 0 0 3px rgba(0,0,0,0.4), 0 0 0 5px rgba(255,255,255,0.2);
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .mute-btn:active{
+    transform:scale(0.92);
+  }
 </style>
 </head>
 <body>
@@ -541,7 +585,22 @@
     </div>
   </div>
 
-  <div id="startScreen" class="overlay">
+  <button id="muteBtn" class="mute-btn" aria-label="Sesi kapat/aç">🔊</button>
+
+  <div id="loadingScreen" class="overlay">
+    <div class="panel">
+      <div class="game-logo">
+        <span class="logo-emoji">🐢</span>
+        <div class="logo-title">CARETTA<br>RUSH</div>
+      </div>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="loadingBarFill"></div>
+      </div>
+      <p class="loading-pct" id="loadingPct">0%</p>
+    </div>
+  </div>
+
+  <div id="startScreen" class="overlay hidden">
     <div class="panel">
       <div class="game-logo">
         <span class="logo-emoji">🐢</span>
@@ -609,6 +668,9 @@
   const bestEl = document.getElementById('best');
   const timeEl = document.getElementById('time');
   const timerRow = document.getElementById('timerRow');
+  const loadingScreen = document.getElementById('loadingScreen');
+  const loadingBarFill = document.getElementById('loadingBarFill');
+  const loadingPct = document.getElementById('loadingPct');
   const startScreen = document.getElementById('startScreen');
   const endScreen = document.getElementById('endScreen');
   const startBtn = document.getElementById('startBtn');
@@ -616,8 +678,48 @@
   const finalStatsEl = document.getElementById('finalStats');
   const comboRow = document.getElementById('comboRow');
   const streakValEl = document.getElementById('streakVal');
+  const muteBtn = document.getElementById('muteBtn');
+
+  // ---------- asset preloading with a visible progress bar ----------
+  let assetsTotal = 0;
+  let assetsLoaded = 0;
+  let loadingFinished = false;
+  function trackAsset(url){
+    assetsTotal++;
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      assetsLoaded++;
+      updateLoadingProgress();
+    };
+    img.src = url;
+    return img;
+  }
+  function updateLoadingProgress(){
+    const pct = assetsTotal ? Math.min(100, Math.round((assetsLoaded/assetsTotal)*100)) : 100;
+    loadingBarFill.style.width = pct + '%';
+    loadingPct.textContent = pct + '%';
+    if(assetsLoaded >= assetsTotal) finishLoading();
+  }
+  function finishLoading(){
+    if(loadingFinished) return;
+    loadingFinished = true;
+    loadingScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+  }
+  setTimeout(finishLoading, 6000); // safety net if some asset never fires load/error
 
   // ---------- sound effects (synthesized, no audio files) ----------
+  let muted = localStorage.getItem('caretta_muted') === '1';
+  function updateMuteBtn(){ muteBtn.textContent = muted ? '🔇' : '🔊'; }
+  updateMuteBtn();
+  muteBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    muted = !muted;
+    localStorage.setItem('caretta_muted', muted ? '1' : '0');
+    updateMuteBtn();
+    if(!muted) ensureAudio();
+  });
+
   let audioCtx = null;
   function ensureAudio(){
     if(!audioCtx){
@@ -627,6 +729,7 @@
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   }
   function tone(freq, start, dur, type, gain){
+    if(muted) return;
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = type;
@@ -687,8 +790,8 @@
   const CREATURE_IDS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,30,31,32,40,41,42,45,46,47];
   const CREATURE_FRAMES = CREATURE_IDS.map(i=>`frames/creatures/creature${i}.png`);
   // warm the browser cache so swapping background-image never shows a blank/broken frame
-  TURTLE_FRAMES.forEach(src => { const w = new Image(); w.src = src; });
-  CREATURE_FRAMES.forEach(src => { const w = new Image(); w.src = src; });
+  TURTLE_FRAMES.forEach(src => trackAsset(src));
+  CREATURE_FRAMES.forEach(src => trackAsset(src));
 
   function rand(min,max){ return min + Math.random()*(max-min); }
   function randomFrame(frames){ return frames[Math.floor(Math.random()*frames.length)]; }
@@ -824,7 +927,7 @@
     { src: 'frames/fx/baloons.png', ratio: 2.817 },
     { src: 'frames/fx/dalga.png', ratio: 0.852 }
   ];
-  BUBBLE_FX.forEach(f => { const w = new Image(); w.src = f.src; });
+  BUBBLE_FX.forEach(f => trackAsset(f.src));
 
   function spawnBubbles(){
     const count = 16; // varied shapes read as busier at the same count, so trim it a bit
@@ -849,7 +952,7 @@
 
   // ---------- cycling background ----------
   const BACKGROUNDS = ['background1.jpeg','background2.jpeg','background3.jpeg','background4.jpeg'];
-  BACKGROUNDS.forEach(src => { const w = new Image(); w.src = src; });
+  BACKGROUNDS.forEach(src => trackAsset(src));
   const BG_INTERVAL = 15; // seconds per background
   const bgLayers = [document.getElementById('bgLayerA'), document.getElementById('bgLayerB')];
   function setBgImage(layer, src){
@@ -1158,7 +1261,8 @@
 
   // ---------- golden caretta power-up (rare, high value) ----------
   const GOLD_FRAME = 'frames/turtles/carettagold.png';
-  (function(){ const w = new Image(); w.src = GOLD_FRAME; })();
+  trackAsset(GOLD_FRAME);
+  ['frames/fx/iz1.png', 'frames/fx/iz2.png', 'frames/fx/patlama.png', 'frames/fx/heart.png', 'frames/fx/star.png'].forEach(src => trackAsset(src));
   const GOLD_MIN_DELAY = 14000, GOLD_MAX_DELAY = 26000; // ms between appearances
   const GOLD_ACTIVE_DURATION = 7000; // ms visible before it swims off uncaught
   const GOLD_POINTS = 10;
